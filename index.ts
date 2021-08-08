@@ -87,6 +87,7 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
         if(!results.length) {
             continue;
         }
+        let coords: GeoJSON.Position[];
         
         return results.reduce((nearest, current) => {
             const geom = current.geometry as GeoJSON.Geometry;
@@ -95,23 +96,23 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
                 distance = ruler.distance([point.coordinates[0],point.coordinates[1]], [geom.coordinates[0], geom.coordinates[1]])
             }
             else if(geom.type === 'LineString') {
-                //console.log(geom)
-                distance = geom.coordinates.reduce((nearestWithin, currentWithin) => {
+                coords = geom.coordinates;
+            }
+            else if(geom.type === 'MultiLineString' || geom.type === 'Polygon') {
+                coords = geom.coordinates.flat(1);
+            }   
+            else if(geom.type === 'MultiPolygon') {
+                coords = geom.coordinates.flat(2)
+            }
+            else {
+                console.log(geom)
+                throw geom.type;
+            }
+            if(geom.type !== 'Point') {
+                distance = coords.reduce((nearestWithin, currentWithin) => {
                     const d = ruler.distance([point.coordinates[0],point.coordinates[1]], [currentWithin[0], currentWithin[1]])
                     return Math.min(nearestWithin, d);
                 }, distance)
-            }
-            else if(geom.type === 'MultiLineString') {
-                distance = geom.coordinates.reduce((nearestWithin, currentWithin) => {
-                    const d = currentWithin.reduce((nearestWithin, currentWithinDeeper) => {
-                        const dDeeper = ruler.distance([point.coordinates[0],point.coordinates[1]], [currentWithinDeeper[0], currentWithinDeeper[1]])
-                        return Math.min(nearestWithin, dDeeper);
-                    }, nearestWithin)
-                    return Math.min(nearestWithin, d);
-                }, distance)
-            }   
-            else {
-                throw geom.type;
             }
             return Math.min(nearest, distance);
         }, 999999999) as number;

@@ -7,7 +7,8 @@
         "dams_geo": "Dam",
         "natural_gas_pipelines_geo": "Natural Gas Pipeline",
         "public_schools": "Public School",
-        "electrical_substations_geo": "Electrical Substation"
+        "electrical_substations_geo": "Electrical Substation",
+        "flood_zones_geo": "Flood Zone"
     },
     "baseCollection": "tract_geo_140mb_no_2d_index",
     "outputFile": "./out/proximityFile.json",
