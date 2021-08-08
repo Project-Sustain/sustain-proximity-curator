@@ -1,0 +1,14 @@
+{
+    "collections": {
+        "fire_stations_geo": "Fire Station",
+        "hospitals_geo": "Hospital",
+        "power_plants_geo": "Power Plant"
+    },
+    "baseCollection": "tract_geo_140mb_no_2d_index",
+    "outputFile": "./out/proximityFile.json",
+    "joinField": "GISJOIN",
+    "mongoCred": {
+        "name": "sustaindb",
+        "port": 27018
+    }
+}
