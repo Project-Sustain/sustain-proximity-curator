@@ -34,6 +34,7 @@ MongoClient.connect(`mongodb://localhost:${mongoCred.port}`, async function (err
 
         for(const [collection, label] of Object.entries(collections)) {
             const nearest = await findNearest(entry.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon, collection, db)
+            
         }
     }
 
@@ -53,7 +54,7 @@ const allUniqueFields = async (db: mongodb.Db): Promise<string[]> => {
     return uniqueFields;
 }
 
-type nearestResult = -1 | GeoJSON.Geometry
+type nearestResult = -1 | number
 //returns -1 if the nearest is WITHIN the geometry, or the geometry of the nearest object if it is not
 const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, collection: string, db: mongodb.Db): Promise<nearestResult> => {
     const withinGeometryQueryResult = await db.collection(collection).findOne({
@@ -69,6 +70,8 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
 
     const centroid = turf.centroid(geometry) as GeoJSON.Feature
     const point = centroid.geometry as GeoJSON.Point;
+    console.log(point.coordinates[1])
+    const ruler = new CheapRuler(point.coordinates[1], 'miles');
     
     for(let miles = 10; miles < 10000; miles += 10) {
         console.log(`Trying ${miles} for ${collection} and ${point.coordinates}`)
@@ -78,7 +81,11 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
             continue;
         }
         
-        break;
+        return results.reduce((nearest, current) => {
+            const geom = current.geometry as GeoJSON.Point;
+            const distance = ruler.distance([point.coordinates[0],point.coordinates[1]], [geom.coordinates[0], geom.coordinates[1]])
+            return Math.min(nearest, distance);
+        }, 999999999) as number;
     }
     
     return -1;
