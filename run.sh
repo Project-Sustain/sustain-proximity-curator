@@ -1,3 +1,3 @@
-tsc index.ts
+npx tsc
 
 node ./build/index.js

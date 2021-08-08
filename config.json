@@ -6,7 +6,7 @@
     },
     "baseCollection": "tract_geo_140mb_no_2d_index",
     "outputFile": "./out/proximityFile.json",
-    "joinField": "GISJOIN",
+    "uniqueField": "GISJOIN",
     "mongoCred": {
         "name": "sustaindb",
         "port": 27018
