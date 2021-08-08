@@ -2,7 +2,12 @@
     "collections": {
         "fire_stations_geo": "Fire Station",
         "hospitals_geo": "Hospital",
-        "power_plants_geo": "Power Plant"
+        "power_plants_geo": "Power Plant",
+        "transmission_lines_geo": "Transmission Line",
+        "dams_geo": "Dam",
+        "natural_gas_pipelines_geo": "Natural Gas Pipeline",
+        "public_schools": "Public School",
+        "electrical_substations_geo": "Electrical Substation"
     },
     "baseCollection": "tract_geo_140mb_no_2d_index",
     "outputFile": "./out/proximityFile.json",

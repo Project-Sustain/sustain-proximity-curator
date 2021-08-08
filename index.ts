@@ -2,6 +2,7 @@ import config from "./config.json";
 import mongodb = require('mongodb');
 import CheapRuler from "cheap-ruler";
 import * as turf from '@turf/turf'
+import fs = require('fs')
 const { MongoClient } = mongodb;
 
 const { uniqueField, collections, baseCollection, outputFile, mongoCred } = config;
@@ -22,7 +23,10 @@ MongoClient.connect(`mongodb://localhost:${mongoCred.port}`, async function (err
     const uniqueFields = await allUniqueFields(db);
 
     //now, loop over each one
+    let i = 0;
     for(const uniqueFieldValue of uniqueFields) {
+        i++;
+        console.log(`${i / uniqueFields.length * 100}`.substr(0,4) + '%')
         //get the matching entry for this field value
         const entry = await db.collection(baseCollection).findOne({ [uniqueField]: uniqueFieldValue }) as GeoJSON.Feature | undefined;
         if(!entry) {
@@ -34,10 +38,14 @@ MongoClient.connect(`mongodb://localhost:${mongoCred.port}`, async function (err
 
         for(const [collection, label] of Object.entries(collections)) {
             const nearest = await findNearest(entry.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon, collection, db)
-            
+            entryProximityResult[`nearest_${label.replace(/ /gi, "_").toLowerCase()}`] = nearest;
         }
+
+        proximityEntries.push(entryProximityResult)
+        console.log(entryProximityResult)
     }
 
+    fs.writeFileSync(outputFile, JSON.stringify(proximityEntries, null, 4))
     client.close();
 });
 
@@ -54,8 +62,8 @@ const allUniqueFields = async (db: mongodb.Db): Promise<string[]> => {
     return uniqueFields;
 }
 
-type nearestResult = -1 | number
-//returns -1 if the nearest is WITHIN the geometry, or the geometry of the nearest object if it is not
+type nearestResult = 0 | number
+//returns 0 if the nearest is WITHIN the geometry, or the geometry of the nearest object if it is not
 const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, collection: string, db: mongodb.Db): Promise<nearestResult> => {
     const withinGeometryQueryResult = await db.collection(collection).findOne({
         geometry: { 
@@ -65,16 +73,15 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
         }
     }) as GeoJSON.Feature;
     if(withinGeometryQueryResult){
-        return -1;
+        return 0;
     }
 
     const centroid = turf.centroid(geometry) as GeoJSON.Feature
     const point = centroid.geometry as GeoJSON.Point;
-    console.log(point.coordinates[1])
     const ruler = new CheapRuler(point.coordinates[1], 'miles');
     
     for(let miles = 10; miles < 10000; miles += 10) {
-        console.log(`Trying ${miles} for ${collection} and ${point.coordinates}`)
+        //console.log(`Trying ${miles} for ${collection} and ${point.coordinates}`)
         const withinRadiusQueryResult = await db.collection(collection).find( { geometry: { $geoWithin: { $centerSphere: [ point.coordinates , miles / 3963.2 ] } } } );
         const results = await withinRadiusQueryResult.toArray() as GeoJSON.Feature[];
         if(!results.length) {
@@ -82,8 +89,30 @@ const findNearest = async (geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon, col
         }
         
         return results.reduce((nearest, current) => {
-            const geom = current.geometry as GeoJSON.Point;
-            const distance = ruler.distance([point.coordinates[0],point.coordinates[1]], [geom.coordinates[0], geom.coordinates[1]])
+            const geom = current.geometry as GeoJSON.Geometry;
+            let distance = 99999999;
+            if(geom.type === 'Point') {
+                distance = ruler.distance([point.coordinates[0],point.coordinates[1]], [geom.coordinates[0], geom.coordinates[1]])
+            }
+            else if(geom.type === 'LineString') {
+                //console.log(geom)
+                distance = geom.coordinates.reduce((nearestWithin, currentWithin) => {
+                    const d = ruler.distance([point.coordinates[0],point.coordinates[1]], [currentWithin[0], currentWithin[1]])
+                    return Math.min(nearestWithin, d);
+                }, distance)
+            }
+            else if(geom.type === 'MultiLineString') {
+                distance = geom.coordinates.reduce((nearestWithin, currentWithin) => {
+                    const d = currentWithin.reduce((nearestWithin, currentWithinDeeper) => {
+                        const dDeeper = ruler.distance([point.coordinates[0],point.coordinates[1]], [currentWithinDeeper[0], currentWithinDeeper[1]])
+                        return Math.min(nearestWithin, dDeeper);
+                    }, nearestWithin)
+                    return Math.min(nearestWithin, d);
+                }, distance)
+            }   
+            else {
+                throw geom.type;
+            }
             return Math.min(nearest, distance);
         }, 999999999) as number;
     }
